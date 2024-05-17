@@ -11,6 +11,9 @@ importers:
       '@mdi/font':
         specifier: 6.2.95
         version: 6.2.95
+      axios:
+        specifier: ^1.6.8
+        version: 1.6.8
       roboto-fontface:
         specifier: '*'
         version: 0.10.0
