@@ -20,9 +20,6 @@ importers:
       vue:
         specifier: ^3.4.21
         version: 3.4.27(typescript@5.4.5)
-      vue-axios:
-        specifier: ^3.5.2
-        version: 3.5.2(axios@1.6.8)(vue@3.4.27(typescript@5.4.5))
       vuetify:
         specifier: ^3.5.8
         version: 3.6.6(typescript@5.4.5)(vite-plugin-vuetify@2.0.3)(vue@3.4.27(typescript@5.4.5))
@@ -37,7 +34,7 @@ importers:
         specifier: ^5.0.4
         version: 5.0.4(vite@5.2.11(@types/node@20.12.12)(sass@1.77.1))(vue@3.4.27(typescript@5.4.5))
       sass:
-        specifier: ^1.71.1
+        specifier: ^1.77.1
         version: 1.77.1
       typescript:
         specifier: ^5.4.2
@@ -715,12 +712,6 @@ packages:
       terser:
         optional: true
 
-  vue-axios@3.5.2:
-    resolution: {integrity: sha512-GP+dct7UlAWkl1qoP3ppw0z6jcSua5/IrMpjB5O8bh089iIiJ+hdxPYH2NPEpajlYgkW5EVMP95ttXWdas1O0g==}
-    peerDependencies:
-      axios: '*'
-      vue: ^3.0.0 || ^2.0.0
-
   vue-template-compiler@2.7.16:
     resolution: {integrity: sha512-AYbUWAJHLGGQM7+cNTELw+KsOG9nl2CnSv467WobS5Cv9uk3wFcnr1Etsz2sEIHEZvw1U+o9mRlEO6QbZvUPGQ==}
 
@@ -1327,11 +1318,6 @@ snapshots:
       '@types/node': 20.12.12
       fsevents: 2.3.3
       sass: 1.77.1
-
-  vue-axios@3.5.2(axios@1.6.8)(vue@3.4.27(typescript@5.4.5)):
-    dependencies:
-      axios: 1.6.8
-      vue: 3.4.27(typescript@5.4.5)
 
   vue-template-compiler@2.7.16:
     dependencies:

@@ -28,48 +28,35 @@
                 </div>
               </v-form>
           </v-sheet>
-        </v-container>        
+        </v-container>
+        
+        <div class="card" v-if="previewCard">
+          <div class=frontbg>
+            {{preview.word}}
+            <div class=hira>
+              {{preview.reading}}
+            </div>
+          </div>
+          <div class=backbg>
+            <div class=wordtype>
+              〔{{preview.wordType}}〕
+            </div>
+            <div class=defbg>
+              {{preview.Definition}}
+            </div>
+            <div class=sentence v-html="preview.Sentences"></div>
+            <div class=others v-html="preview.Others"></div>
+          </div>
+        </div>
     </v-app>
   </template>
   
   <script setup lang="ts">
   import { ref } from 'vue';
-  import axios from "axios";
-
-  const ANKI_URL = import.meta.env.VITE_ANKI_URL;
-  const OPENAI_URL = import.meta.env.VITE_OPENAI_API_KEY;
-
-  enum Tab {
-    Word = '1',
-    CopyFromDictionary = '2',
-  };
-
-  enum Alert {
-    Success = 'success',
-    Error = 'error',
-    None = '',
-  };
-
-  type ankiFields = {
-    Word: string;
-    "Word Type": string;
-    Reading: string;
-    Definition: string;
-    "Sentence(s)": string;
-    "Other(s)": string;
-  };
-
-  type ankiBody = {
-    action: string;
-    version: number;
-    key: string;
-    params: object;
-  };
-
-  type ankiResponse = {
-    error: string;
-    result: string[];
-  };
+  import { ankiFields, previewCard } from '../types/generator';
+  import { Tab, Alert } from '../enums/generator';
+  import openAi from '../methods/openai';
+  import anki from '../methods/anki';
 
   const tab = ref<Tab>(Tab.Word);
   const alertStatus = ref<Alert>(Alert.None);
@@ -85,42 +72,17 @@
       return 'You must enter a word';
     },
   ];
-  const getDictionaryPrompt = (message: string): string => {
-    return `
-    Please convert this dictionary word to Json.
-    \`\`\`
-    ${message}
-    \`\`\`
-
-    The response key and type of json that required:
-    \`\`\`
-    "Word" => String
-    "Word Type" => String
-    "Reading" => String (It's translated word by Chinese Traditional.)
-    "Definition" => String
-    "Sentence(s)" => String (Multiple examples with sentence translation (If sentence translation exists) to HTML. Wrap each example with <br> tag. Example: She did a test to see how well the students could pronounce the English words. <br> 她做了一個測試，看看學生們能否發音英文單字。 <br> He did a test to see how well the students could pronounce the English words. <br> 他做了一個測試，看看學生們能否發音英文單字。)
-    "Other(s)" => String
-    \`\`\`
-    `;
-  };
-  const getWordPrompt = (message: string): string => {
-    return `
-    Word: \`${message}\`
-    Please make the word's detail from Cambridge English-Chinese Dictionary.
-    The response type is json that required:
-    \`\`\`
-    "Word" => String
-    "Word Type" => String
-    "Reading" => String (It's translated word by Chinese Traditional)
-    "Definition" => String
-    "Sentence(s)" => String
-    "Other(s)" => String
-    \`\`\`
-    `;
-  };
+  const preview = ref<previewCard>({
+    word: 'Example',
+    wordType: 'Noun',
+    reading: '範例',
+    Definition: 'An example is something that is used to demonstrate or represent a larger concept.',
+    Sentences: 'This is an example sentence. <br> 這是一個例句。',
+    Others: 'Other information',
+  });
+  const previewCard = ref(false);
 
   const setAlert = (type: Alert, message?: string): void => {
-    console.log(message);
     alertStatus.value = type;
     messages.value = message ? message : (type === Alert.Success) ? 'The card has been generated successfully' : 'Error when generating the card';
 
@@ -130,116 +92,18 @@
     }, 5000);
   };
 
-  const getContent = (message: string): string => {
-      if (tab.value === Tab.CopyFromDictionary) {
-          return getDictionaryPrompt(message);
-      }
+  const setPreviewCard =  (fields: ankiFields): void => {
 
-      return getWordPrompt(message);
-  }
+    preview.value = {
+      word: fields.Word,
+      wordType: fields["Word Type"],
+      reading: fields.Reading,
+      Definition: fields.Definition,
+      Sentences: fields["Sentence(s)"],
+      Others: fields["Other(s)"],
+    };
 
-  const getFieldsFromOpenAi = async (message: string): Promise<ankiFields> => {
-
-      const content = getContent(message);
-
-      try {
-          const response = await fetch(
-          'https://api.openai.com/v1/chat/completions',
-          {
-              method: 'POST',
-              headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${OPENAI_URL}`,
-              },
-              body: JSON.stringify({
-              model: 'gpt-3.5-turbo',
-              messages: [
-                  { role: 'user', content: content },
-              ],
-              }),
-          }
-          );
-
-          const data = await response.json();
-          const json = data.choices[0].message.content.replace(/```json|```/g, '');
-          // set result to ankiFields type
-          const result: ankiFields = JSON.parse(json);
-          console.log(result);
-
-          return result;
-      } catch (error: any) {
-          throw new Error(error);
-      }
-  };
-
-  const createCard = async (fields: ankiFields): Promise<ankiResponse> => {
-      try {
-          const body: ankiBody = {
-              "action": "addNote",
-              "version": 6,
-              "key": "myankikey",
-              "params": {
-                  "note": {
-                      "deckName": "英文單字",
-                      "modelName": "Custom Template",
-                      "fields": fields,
-                  }
-              }
-          };
-
-          const response = await axios.post(ANKI_URL, body);
-          console.log(response.data);
-
-          return response.data;
-      } catch (error: any) {
-          throw new Error(error);
-      }
-  };
-
-  const findCard = async (word: string): Promise<ankiResponse> => {
-      try {
-
-          const body: ankiBody = {
-              "action": "findNotes",
-              "version": 6,
-              "key": "myankikey",
-              "params": {
-                  "query": `Word:${word}`
-              }
-          };
-
-          const response = await axios.post(ANKI_URL, body);
-
-          console.log(response.data);
-
-          return response.data;
-      } catch (error: any) {
-          throw new Error(error);
-      }
-  };
-
-  const updateCard = async (fields: ankiFields, id: string): Promise<ankiResponse> => {
-      try {
-          const body: ankiBody = {
-              "action": "updateNoteFields",
-              "version": 6,
-              "key": "myankikey",
-              "params": {
-                  "note": {
-                      "id": id,
-                      "fields": fields
-                  }
-              }
-          };
-
-          const response = await axios.post(ANKI_URL, body);
-
-          console.log(response.data);
-
-          return response.data;
-      } catch (error: any) {
-          throw new Error(error);
-      }
+    previewCard.value = true;
   };
 
   const generate = async () => {
@@ -247,18 +111,20 @@
 
     try {
 
-        const fields = await getFieldsFromOpenAi(inputText.value);
+        const fields = await openAi(inputText.value, tab.value);
 
-        const createdData = await createCard(fields);
+        setPreviewCard(fields);
+
+        const createdData = await anki.createCard(fields);
 
         if (createdData.error === 'cannot create note because it is a duplicate') {
-          const findCardData = await findCard(fields.Word);
+          const findCardData = await anki.findCard(fields.Word);
 
           if (findCardData.error || findCardData.result.length === 0) {
               throw new Error(findCardData.error);
           }
 
-          const updateCardData = await updateCard(fields, findCardData.result[0]);
+          const updateCardData = await anki.updateCard(fields, findCardData.result[0]);
 
           if (updateCardData.error) {
               throw new Error(updateCardData.error);
@@ -267,10 +133,159 @@
         setAlert(Alert.Success, 'The card has been generated successfully');
         submit.value = false;
     } catch (error) {
-        console.log(error);
         setAlert(Alert.Error);
         submit.value = false;
     }
   };
   </script>
+
+<style lang="scss">
+// Template 
+.card {
+ font-family: Noto Sans CJK JP Regular;
+ font-size: 50px;
+ text-align: center;
+ color: black;
+ background: url("bg.jpg");
+}
+ 
+.android .card {
+ font-family: Noto Sans CJK JP Regular;
+ font-size: 30px;
+ text-align: center;
+ color: black;
+ background: url("bg.jpg");
+}
+ 
+.frontbg {
+ background-color: #18adab;
+ border-radius: 7px;
+ color: #fff;
+ position: relative;
+ left: 0;
+}
+ 
+.engdefbg {
+ font-family: Raleway;
+ font-style: italic;
+ padding: 15px;
+ margin-left: -5px;
+ margin-top: -15px;
+ color: #18adab;
+ font-size: 15px;
+}
+ 
+.android .engdefbg {
+ font-family: Raleway;
+ font-style: italic;
+ padding: 15px;
+ margin-left: -15px;
+ margin-top: -20px;
+ color: #18adab;
+ font-size: 10px;
+}
+ 
+.others {
+ position: relative;
+ top: 15px;
+ border: 1px dotted #72c8e1;
+ color: #18adab;
+ font-size: 20px;
+ width: auto;
+ padding-top: 15px;
+ padding-left: 20px;
+ padding-bottom: 15px;
+ padding-right: 20px;
+ margin-bottom: 35px;
+}
+ 
+.android .others {
+ position: relative;
+ top: 10px;
+ border: 1px dotted #72c8e1;
+ color: #18adab;
+ font-size: 17px;
+ width: auto;
+ padding-top: 8px;
+ padding-left: 15px;
+ padding-bottom: 8px;
+ padding-right: 15px;
+ margin-bottom: 20px;
+}
+
+.wordtype {
+ font-size: 15px;
+ margin-top: -10px;
+ margin-bottom: 20px;
+}
+
+.defbg {
+ font-size: 20px;
+ margin-bottom: 20px;
+}
+ 
+.sentence {
+ font-size: 20px;
+ margin-top: -20px;
+ margin-bottom: 5px;
+}
+ 
+.android .sentence {
+ font-size: 17px;
+ margin-top: -15px;
+}
+ 
+.backbg {
+ position: relative;
+ top: -3px;
+ background-color: #fff;
+ padding: 15px;
+ padding-bottom: 15px;
+ padding-left: 30px;
+ padding-right: 30px;
+ border-radius: 0px 0px 10px 10px; 
+ color: #016ea6;
+ font-size: 28px;
+ text-align: left;
+}
+ 
+.android .backbg {
+ position: relative;
+ top: -5px;
+ background-color: #fff;
+ padding: 15px;
+ padding-bottom: 15px;
+ padding-left: 15px;
+ padding-right: 15px;
+ border-radius: 0px 0px 10px 10px; 
+ color: #016ea6;
+ font-size: 20px;
+ text-align: left;
+}
+ 
+.hira {
+ font-size: 25px;
+ line-height: 5px;
+ padding-bottom: 40px;
+}
+ 
+.android .hira {
+ font-size: 18px;
+ line-height: 5px;
+ padding-bottom: 25px;
+}
+ 
+hr {
+ height: 2px;
+ font-size: 30px;
+ border: 0;
+ background: #72c8e1;
+}
+ 
+u {
+ text-decoration: none;
+ border-bottom: 1px dotted;
+}
+ 
+</style>
   
