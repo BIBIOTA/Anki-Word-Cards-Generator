@@ -1,11 +1,22 @@
 
-export enum Tab {
+export enum KeywordType {
     Word = '1',
     CopyFromDictionary = '2',
 };
 
-export enum Alert {
+export enum Status {
     Success = 'success',
+    Submitting = 'submitting',
     Error = 'error',
     None = '',
 };
+
+export enum PromptType {
+    Default = '1',
+    Customize = '2',
+}
+
+export enum JsonTypes {
+    String = 'String',
+    StringToHtml = 'String to HTML',
+}

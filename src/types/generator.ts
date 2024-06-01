@@ -1,3 +1,5 @@
+import { JsonTypes, KeywordType, PromptType, Status } from "../enums/generator";
+
 export type ankiFields = {
     Word: string;
     "Word Type": string;
@@ -27,3 +29,28 @@ export type previewCard = {
   Sentences: string;
   Others: string;
 };
+
+export type previewCardConfig = {
+  card: previewCard;
+  show: boolean;
+}
+
+export type jsonField = {
+  key: string;
+  type: JsonTypes;
+  info: string|null;
+}
+
+export type generatorConfig = {
+  keywordType: KeywordType
+  promptType: PromptType
+  status: Status,
+  message: string|null,
+  showOption: boolean,
+}
+
+export type prompt = {
+  keyword: string;
+  message: string;
+  jsonFields: jsonField[];
+}

@@ -1,9 +1,6 @@
 <template>
   <v-app>
-    <v-main>
-      <name-header />
-      <generator />
-    </v-main>
+    <router-view></router-view>
   </v-app>
 </template>
 
