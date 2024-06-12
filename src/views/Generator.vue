@@ -150,8 +150,28 @@
                   >
                     Add Key
                   </v-btn>
-
-
+                  <v-container
+                    style="min-width: 100%"
+                    class="bg-grey-darken-4 ma-0"
+                    outlined
+                    text
+                  >
+                    <h4>
+                      Preview card template
+                    </h4>
+                  </v-container>
+                  <v-switch
+                    color="black"
+                    v-model="preview.show"
+                    label="Show Preview Template"
+                  >
+                  </v-switch>
+                  <v-textarea
+                      v-model="preview.template"
+                      label="Card Template"
+                      auto-grow
+                      hide-details
+                  />
                 </div>
               </v-expand-transition>
 
@@ -170,32 +190,34 @@
             </v-form>
         </v-sheet>
 
-        <div class="card" v-if="preview.show">
-          <div class=frontbg>
-            {{preview.card.word}}
-            <div class=hira>
-              {{preview.card.reading}}
-            </div>
-          </div>
-          <div class=backbg>
-            <div class=wordtype>
-              〔{{preview.card.wordType}}〕
-            </div>
-            <div class=defbg v-html="preview.card.Definition" />
-            <div class=sentence v-html="preview.card.Sentences"></div>
-            <div class=others v-html="preview.card.Others"></div>
-          </div>
+        <div
+          class="mt-5"
+          v-if="preview.show && computedPreview"
+          v-html="computedPreview" >
+        </div>
+
+        <div v-if="preview.card">
+          <v-btn
+            color="#18adab"
+            block
+            size="x-large"
+            @click="downloadJson"
+          >
+            Download Anki Json Fields
+          </v-btn>
         </div>
       </v-container>
   </v-main>
 </template>
   
   <script setup lang="ts">
-  import { reactive, watch } from 'vue';
-  import { ankiFields, generatorConfig, previewCardConfig, prompt } from '../types/generator';
-  import { PromptType, KeywordType, Status, JsonTypes } from '../enums/generator';
+  import { reactive, watch, computed, onMounted } from 'vue';
+  import { SpanlishPromptMessage, EnglishPromptMessage } from '../classes/prompt-message';
+  import { generatorConfig, previewCardConfig, prompt } from '../types/generator';
+  import { PromptType, KeywordType, Status, JsonTypes, Languages } from '../enums/generator';
   import openAi from '../methods/openai';
   import anki from '../methods/anki';
+  import { getLang } from '../methods/lang';
 
   const rules = [
     (value?: string) => {
@@ -207,6 +229,10 @@
     },
   ];
 
+  onMounted(() => {
+    config.language = getLang();
+  });
+
   /* Generator Config */
   const config = reactive<generatorConfig>({
       keywordType: KeywordType.Word,
@@ -214,6 +240,7 @@
       status: Status.None,
       message: null,
       showOption: false,
+      language: Languages.En,
   });
   watch([config], () => {
     promptConfig.message = getPromptMessage();
@@ -224,17 +251,15 @@
       return promptConfig.message;
     }
 
-    if (config.keywordType === KeywordType.Word) {
-      return `
-          Please make above-mentioned word's detail like a Cambridge English-Chinese Dictionary format.
-          The response key and type of json that required: \n
-      `;
-    }
-    
-    return `
-        Please convert above-mentioned dictionary word to Json.
-        The response key and type of json that required: \n
-    `;
+    const promptMessage = (() => {
+      if (config.language === Languages.Es) {
+        return new SpanlishPromptMessage(config.keywordType);
+      }
+
+      return new EnglishPromptMessage(config.keywordType);
+    });
+
+    return promptMessage().getMessage();
   };
   const addField = (): void => {
     promptConfig.jsonFields.push({ key: '', type: JsonTypes.String, info: '' });
@@ -286,29 +311,55 @@
 
   /* Preview Card */
   const preview = reactive<previewCardConfig>({
-    card: {
-      word: 'Example',
-      wordType: 'Noun',
-      reading: '範例',
-      Definition: 'An example is something that is used to demonstrate or represent a larger concept.',
-      Sentences: 'This is an example sentence. <br> 這是一個例句。',
-      Others: 'Other information',
-    },
-    show: false,
+    template: `<div class="card">
+          <div class=frontbg>
+            {{Word}}
+            <div class=hira>
+              {{Reading}}
+            </div>
+          </div>
+          <div class=backbg>
+            <div class=wordtype>
+              〔{{Word Type}}〕
+            </div>
+            <div class=defbg>
+              {{Definition}}
+            </div>
+            <div class=sentence>
+              {{Sentence(s)}}
+            </div>
+            <div class=others>
+              {{Other(s)}}
+            </div>
+          </div>
+        </div>`,
+    card: null,
+    show: true,
   });
-  const setPreviewCard =  (fields: ankiFields): void => {
-    preview.card = {
-      word: fields.Word,
-      wordType: fields["Word Type"],
-      reading: fields.Reading,
-      Definition: fields.Definition,
-      Sentences: fields["Sentence(s)"],
-      Others: fields["Other(s)"],
-    };
+  const computedPreview = computed(() => {
+    if (!preview.show || !preview.card) {
+      return null;
+    }
 
-    preview.show = true;
-  };
+    let template = preview.template;
+    let allKeys = Object.keys(preview.card);
+    allKeys.forEach((key) => {
+      let escapedKey = key.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, '\\$1');
+      let regexp = new RegExp('{{\\s*' + escapedKey + '\\s*}}', 'gi');
+      template = template.replace(regexp, preview.card[key]);
+    });
 
+    return template;
+  });
+  const downloadJson = () => {
+    const data = JSON.stringify(preview.card, null, 2);
+    const blob = new Blob([data], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = preview.card['Word'] ? preview.card['Word'] + '.json' : 'anki-fields' + '.json';
+    a.click();
+  }
 
   /* Generator */
   const formatMessage = (): string => {
@@ -335,9 +386,11 @@
     config.status = Status.Submitting;
 
     try {
+        preview.card = null;
+
         const fields = await openAi.getFieldsFromOpenAi(getFinalPrompt());
 
-        setPreviewCard(fields);
+        preview.card = fields;
 
         const createdData = await anki.createCard(fields);
 

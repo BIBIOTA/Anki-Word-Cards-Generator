@@ -1,13 +1,8 @@
-import { JsonTypes, KeywordType, PromptType, Status } from "../enums/generator";
+import { JsonTypes, KeywordType, Languages, PromptType, Status } from "../enums/generator";
 
 export type ankiFields = {
     Word: string;
-    "Word Type": string;
-    Reading: string;
-    Definition: string;
-    "Sentence(s)": string;
-    "Other(s)": string;
-  };
+};
 
 export type ankiBody = {
   action: string;
@@ -21,17 +16,9 @@ export type ankiResponse = {
   result: string[];
 };
 
-export type previewCard = {
-  word: string;
-  wordType: string;
-  reading: string;
-  Definition: string;
-  Sentences: string;
-  Others: string;
-};
-
 export type previewCardConfig = {
-  card: previewCard;
+  template: any;
+  card: any;
   show: boolean;
 }
 
@@ -47,6 +34,7 @@ export type generatorConfig = {
   status: Status,
   message: string|null,
   showOption: boolean,
+  language: Languages,
 }
 
 export type prompt = {

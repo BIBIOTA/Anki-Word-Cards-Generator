@@ -20,3 +20,8 @@ export enum JsonTypes {
     String = 'String',
     StringToHtml = 'String to HTML',
 }
+
+export enum Languages {
+    En = 'en',
+    Es = 'es',
+}
